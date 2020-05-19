@@ -59,6 +59,9 @@ shared: $(SHAREDSO)
 
 # Zlib
 EXE_LINKS_TO += %{zlib_ldflags}
+#
+# BZip2
+EXE_LINKS_TO += %{bzip2_ldflags}
 
 # Gtest build
 # ###########
@@ -107,7 +110,7 @@ $(GTEST_TARGET_DIR)/libgtest_main.a : $(GTEST_TARGET_DIR)/gtest-all.o $(GTEST_TA
 
 # Unit tests
 
-TEST_INCLUDES = -isystem $(GTEST_DIR)/include
+TEST_INCLUDES = -isystem $(GTEST_DIR)/include -Isrc/lib
 TEST_LINKS_TO = $(GTEST_TARGET_DIR)/libgtest_main.a $(GTEST_TARGET_DIR)/libgtest.a
 
 # Misc targets
@@ -136,11 +139,11 @@ TESTOBJS = %{join test_objs}
 
 # Executable targets
 
-$(CLI): $(LIBRARIES) $(CLIOBJS) $(BOTAN_TARGET) $(ZLIB)
+$(CLI): $(LIBRARIES) $(CLIOBJS) $(BOTAN_TARGET)
 	$(EXE_LINK_CMD) $(ABI_FLAGS) $(LDFLAGS) $(CLIOBJS) $(BOTAN_LDFLAGS) $(EXE_LINKS_TO) %{output_to_exe}$@
 	$(POST_LINK_CMD)
 
-$(TEST): $(LIBRARIES) $(TESTOBJS) $(GTEST) $(BOTAN_TARGET) $(ZLIB)
+$(TEST): $(LIBRARIES) $(TESTOBJS) $(GTEST) $(BOTAN_TARGET)
 	$(EXE_LINK_CMD) $(ABI_FLAGS) $(LDFLAGS) $(TESTOBJS) $(BOTAN_LDFLAGS) $(EXE_LINKS_TO) $(TEST_LINKS_TO) %{output_to_exe}$@
 	$(POST_LINK_CMD)
 

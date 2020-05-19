@@ -12,6 +12,7 @@
 #include "emsg_symmetric_key.h"
 #include "state_id.h"
 #include "context.h"
+#include "plog/Log.h"
 
 using namespace std;
 using namespace LightStateMachine;
@@ -99,7 +100,7 @@ namespace EncryptMsg
     {
         private:
             SessionState session_state_;
-            StateGraphInfo graph_info_;
+            StateGraph &state_graph_;
             Context context_;
             LightStateMachine::StateMachine state_machine_;
             PacketFactory packet_factory_;
@@ -134,13 +135,12 @@ namespace EncryptMsg
     };
 
     MessageReaderImpl::MessageReaderImpl(bool analyze_only):
-        graph_info_(BuildStateGraph()),
-        state_machine_(*graph_info_.state_graph, graph_info_.start_node, graph_info_.fail_node, context_),
+        state_graph_(BuildStateGraph()),
+        state_machine_(state_graph_, context_),
         packet_factory_(session_state_), analyze_only_(analyze_only)
     {
         context_.SetState(session_state_);
-        state_machine_.SetStateIDToStringConverter(
-                std::unique_ptr<EmsgStateIDToStringConverter>(new EmsgStateIDToStringConverter()));
+        state_machine_.SetStateIDToStringConverter(EmsgStateIDToStringConverter);
     }
 
     void MessageReaderImpl::Start()
@@ -210,6 +210,7 @@ namespace EncryptMsg
 
     void MessageReaderImpl::Update(SafeVector &buf)
     {
+        LOG_DEBUG << "Update called";
         if(buf.empty())
             return;
         session_state_.buffer_stack.push(buf);
@@ -234,7 +235,9 @@ namespace EncryptMsg
 
     void MessageReaderImpl::Finish(SafeVector &buf)
     {
+        LOG_DEBUG << "Finish called";
         Update(buf);
+        LOG_DEBUG << "finish_packets set";
         session_state_.finish_packets = true;
         state_machine_.Reset();
         while(state_machine_.NextState())

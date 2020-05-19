@@ -21,6 +21,22 @@ namespace
         StateMachineContext *p = &ctx;
         return *(static_cast<Context*>(p));
     }
+
+    bool EvaluateResult(Context &context)
+    {
+        auto &state = context.State();
+
+        switch(state.emsg_result)
+        {
+            case EmsgResult::Success:
+            case EmsgResult::Pending:
+                break;
+            default:
+                context.SetFailed(true);
+                return false;
+        }
+        return true;
+    }
 }
 
 namespace EncryptMsg
@@ -95,6 +111,63 @@ namespace EncryptMsg
         }
     }
 
+    bool ArmorCanEnter(LightStateMachine::StateMachineContext &ctx)
+    {
+        auto &state = ToContext(ctx).State();
+        return (!state.buffer_stack.empty() || state.finish_packets);
+    }
+
+    void ArmorOnEnter(LightStateMachine::StateMachineContext &ctx)
+    {
+        Context &context = ToContext(ctx);
+        auto &state = context.State();
+
+        if(state.armor_reader.GetStatus() == ArmorStatus::Disabled)
+            return;
+
+        auto &reader = state.armor_reader;
+        auto &buffer_stack = state.buffer_stack;
+        SafeVector output;
+        auto out_stm = EncryptMsg::MakeOutStream(output);
+
+        // it can be empty when finishing
+        if(!buffer_stack.empty())
+        {
+            reader.GetInStream().Push(buffer_stack.top());
+            buffer_stack.pop();
+        }
+
+        if(state.finish_packets)
+        {
+            state.emsg_result = reader.Finish(*out_stm);
+        }
+        else
+        {
+            state.emsg_result = reader.Read(*out_stm);
+        }
+
+        if(!EvaluateResult(context))
+            return;
+
+        switch(reader.GetStatus())
+        {
+            case ArmorStatus::Disabled:
+                state.message_config.SetArmor(false);
+                buffer_stack.emplace();
+                AppendToBuffer(reader.GetInStream(), buffer_stack.top());
+                break;
+            case ArmorStatus::Enabled:
+                state.message_config.SetArmor(true);
+                break;
+            default:
+                break;
+        }
+
+        if(!output.empty())
+        {
+            buffer_stack.push(move(output));
+        }
+    }
 
     bool PacketCanExit(StateMachineContext &ctx)
     {
@@ -158,6 +231,7 @@ namespace EncryptMsg
         // it can be empty when finishing
         if(!buffer_stack.empty())
         {
+            LOG_DEBUG << "Push bytes to packet: " << buffer_stack.top().size();
             packet.GetInStream().Push(buffer_stack.top());
             buffer_stack.pop();
         }
@@ -169,11 +243,13 @@ namespace EncryptMsg
                 *state.packet_chain_it = PacketType::Unknown;
                 if(packet.GetInStream().GetCount() > 0)
                 {
+                    LOG_DEBUG << "Unused bytes returned: " << packet.GetInStream().GetCount();
                     buffer_stack.emplace();
                     AppendToBuffer(packet.GetInStream(), buffer_stack.top());
                 }
                 break;
             case EmsgResult::Pending:
+                LOG_DEBUG << "Return Pending";
                 break;
             default:
                 context.SetFailed(true);
@@ -225,7 +301,13 @@ namespace EncryptMsg
         assert(packet_pair.first);
         assert(!packet_pair.second);
 
+        LOG_DEBUG << "Finish packet: " << GetPacketSpec(*state.packet_chain_it).packet_name;
         state.emsg_result = packet_pair.first->Finish();
+        if(state.emsg_result != EmsgResult::Success)
+        {
+            context.SetFailed(true);
+            return;
+        }
         *state.packet_chain_it = PacketType::Unknown;
         state.packet_chain_it ++;
     }

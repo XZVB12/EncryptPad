@@ -12,6 +12,7 @@ using namespace Botan;
 
 namespace
 {
+    fstream::char_type *ToChar(uint8_t *p);
     fstream::char_type *ToChar(uint8_t *p)
     {
         return reinterpret_cast<fstream::char_type*>(p);
@@ -54,17 +55,19 @@ namespace EncryptMsg
 {
     namespace Cli
     {
-        void Encrypt(const std::string &input, const std::string &output, const std::string &pwd_file)
+        void Encrypt(const std::string &input, const std::string &output, const std::string &pwd_file, bool armor)
         {
             FilePassphraseProvider pwd_provider(pwd_file);
 
             MessageConfig config;
-            config.SetCipherAlgo(CipherAlgo::AES256);
+            config.SetCipherAlgo(CipherAlgo::Twofish);
+            config.SetHashAlgo(HashAlgo::SHA224);
             config.SetCompression(Compression::ZIP);
             config.SetFileName("test.txt");
             config.SetFileDate(0); //TODO: see how to set the date in EncryptPad
             config.SetBinary(true);
             config.SetPartialLengthPower(4); // This will create partial packets of 2^4 = 16 bytes
+            config.SetArmor(armor);
 
             MessageWriter writer;
 

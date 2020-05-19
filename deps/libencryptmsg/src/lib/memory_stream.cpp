@@ -5,9 +5,11 @@
 //LibEncryptMsg is released under the Simplified BSD License (see license.txt)
 //**********************************************************************************
 #include "memory_stream.h"
+#include <algorithm>
 #include "assert.h"
 #include "packet_parsers.h"
 #include "emsg_constants.h"
+#include "plog/Log.h"
 
 namespace EncryptMsg
 {
@@ -76,19 +78,28 @@ namespace EncryptMsg
         stm.Read(buf.data(), stm.GetCount());
     }
 
+    void PushBackToBuffer(InBufferStream &stm, SafeVector &buf)
+    {
+        size_t prev_count = buf.size();
+        buf.resize(prev_count + stm.GetCount());
+        stm.Read(buf.data() + prev_count, stm.GetCount());
+    }
+
     SafeVector::const_iterator InBufferStream::ReadLength(SafeVector::const_iterator it, SafeVector::const_iterator end)
     {
-        assert(static_cast<size_t>(end - it) >= 5U);
-        (void)end;
-        // TODO: Add ReadLength overload to read from iterators so we don't need to make a temp buffer
-        SafeVector buf(it, it + 5U);
+        size_t range_distance = static_cast<size_t>(std::distance(it, end));
+        size_t bytes2take = std::min(range_distance, static_cast<size_t>(5U));
+
+        SafeVector buf(it, it + bytes2take);
         InBufferStream stm;
         stm.Push(buf);
+
+        // TODO: Add ReadLength overload to read from iterators so we don't need to make a temp buffer
         bool is_partial = false;
         SetPartialCount(EncryptMsg::ReadLength(stm, is_partial));
         if(!is_partial)
             SetPartialLength(false);
-        return it + 5U - stm.GetCount();
+        return it + bytes2take - stm.GetCount();
     }
 
     size_t InBufferStream::GetPartialCount() const
@@ -163,7 +174,8 @@ namespace EncryptMsg
                 size_t bytes2fill_length_buf = std::min(static_cast<size_t>(buf.cend() - it), 5U - length_buffer_.size());
                 length_buffer_.insert(length_buffer_.end(), it, it + bytes2fill_length_buf);
                 it += bytes2fill_length_buf;
-                if(length_buffer_.size() == 5U)
+                if(length_buffer_.size() == 5U ||
+                        (length_buffer_.size() >= 1 && TryOneOctetLength(length_buffer_[0]).is_one_octet_length))
                 {
                     auto lb_it = length_buffer_.cbegin();
                     lb_it = ReadLength(lb_it, length_buffer_.cend());

@@ -44,17 +44,29 @@ namespace EncryptMsg
 
         TestParameters MessageDecryptionFixture::ParameterCombination[] =
         {
-            {8, "simple_text.txt.gpg", 1015808, "04D58C5C071A5B3F"},
-            {24, "simple_text.txt.gpg", 1015808, "04D58C5C071A5B3F"},
-            {128, "simple_text.txt.gpg", 1015808, "04D58C5C071A5B3F"},
-            {512, "simple_text.txt.gpg", 1015808, "04D58C5C071A5B3F"},
-            {1024, "simple_text.txt.gpg", 1015808, "04D58C5C071A5B3F"},
-
-            {8, "simple_text.txt.cast5.gpg", 65536, "E688F0DA9651F2F6"},
-            {24, "simple_text.txt.cast5.gpg", 65536, "E688F0DA9651F2F6"},
-            {128, "simple_text.txt.cast5.gpg", 65536, "E688F0DA9651F2F6"},
-            {512, "simple_text.txt.cast5.gpg", 65536, "E688F0DA9651F2F6"},
-            {1024, "simple_text.txt.cast5.gpg", 65536, "E688F0DA9651F2F6"},
+            {1024, "simple_text.txt.twofish.sha160.gpg", 37748736, "B20F6271BFD9FAE3"},
+            {1024, "simple_text.txt.aes192.sha160.gpg", 37748736, "5E91968C5DE5CE34"},
+            {1024, "simple_text.txt.aes256.sha512.gpg", 37748736, "02F89FB223F53ED5"},
+            {1024, "simple_text.txt.aes256.sha384.gpg", 37748736, "DD6C4862CEE8586B"},
+            {1024, "simple_text.txt.aes256.sha224.gpg", 37748736, "2EBD66CAD3F95805"},
+            {1024, "simple_text.txt.camellia128.sha256.gpg", 37748736, "53B1EACAA05AE179"},
+            {1024, "simple_text.txt.camellia192.sha256.gpg", 37748736, "0DD33E7B3AF69909"},
+            {1024, "simple_text.txt.camellia256.sha256.gpg", 37748736, "2252062DE97661F0"},
+            {8, "simple_text.txt.aes256.sha256.gpg", 1015808, "04D58C5C071A5B3F"},
+            {24, "simple_text.txt.aes256.sha256.gpg", 1015808, "04D58C5C071A5B3F"},
+            {128, "simple_text.txt.aes256.sha256.gpg", 1015808, "04D58C5C071A5B3F"},
+            {512, "simple_text.txt.aes256.sha256.gpg", 1015808, "04D58C5C071A5B3F"},
+            {1024, "simple_text.txt.aes256.sha256.gpg", 1015808, "04D58C5C071A5B3F"},
+            {8, "simple_text.txt.cast5.sha160.gpg", 65536, "E688F0DA9651F2F6"},
+            {24, "simple_text.txt.cast5.sha160.gpg", 65536, "E688F0DA9651F2F6"},
+            {128, "simple_text.txt.cast5.sha160.gpg", 65536, "E688F0DA9651F2F6"},
+            {512, "simple_text.txt.cast5.sha160.gpg", 65536, "E688F0DA9651F2F6"},
+            {1024, "simple_text.txt.cast5.sha160.gpg", 65536, "E688F0DA9651F2F6"},
+            {8, "simple_text.txt.aes128.sha160.asc", 35651584, "5FF41A59F11682F1"},
+            {24, "simple_text.txt.aes128.sha160.asc", 35651584, "5FF41A59F11682F1"},
+            {128, "simple_text.txt.aes128.sha160.asc", 35651584, "5FF41A59F11682F1"},
+            {512, "simple_text.txt.aes128.sha160.asc", 35651584, "5FF41A59F11682F1"},
+            {1024, "simple_text.txt.aes128.sha160.asc", 35651584, "5FF41A59F11682F1"},
         };
 
         INSTANTIATE_TEST_CASE_P(Common, MessageDecryptionFixture,
@@ -128,17 +140,81 @@ namespace EncryptMsg
             ASSERT_EQ(true, config.GetBinary());
         }
 
+        std::string NextToken(std::string &text)
+        {
+            auto it = std::find(text.begin(), text.end(), '.');
+            if(it == text.end())
+                return std::string();
+
+            std::string ret_val(text.begin(), it);
+            it++;
+            text.erase(text.begin(), it);
+            return ret_val;
+        }
+
         void MessageDecryptionFixture::TestSecurity(const MessageConfig &config, const Salt &salt)
         {
-            if(parameters_.encrypted_file == "simple_text.txt.cast5.gpg")
+            std::string file_name = parameters_.encrypted_file;
+
+            // remove "simple_text.txt."
+            NextToken(file_name);
+            NextToken(file_name);
+            std::string cipher = NextToken(file_name);
+            std::string hash = NextToken(file_name);
+            std::string ext = NextToken(file_name);
+
+            // Cipher
+            if(cipher == "cast5")
             {
                 ASSERT_EQ(CipherAlgo::CAST5, config.GetCipherAlgo());
-                ASSERT_EQ(HashAlgo::SHA160, config.GetHashAlgo());
             }
-            else
+            else if(cipher == "aes128")
+            {
+                ASSERT_EQ(CipherAlgo::AES128, config.GetCipherAlgo());
+            }
+            else if(cipher == "aes192")
+            {
+                ASSERT_EQ(CipherAlgo::AES192, config.GetCipherAlgo());
+            }
+            else if(cipher == "aes256")
             {
                 ASSERT_EQ(CipherAlgo::AES256, config.GetCipherAlgo());
+            }
+            else if(cipher == "camellia128")
+            {
+                ASSERT_EQ(CipherAlgo::Camellia128, config.GetCipherAlgo());
+            }
+            else if(cipher == "camellia192")
+            {
+                ASSERT_EQ(CipherAlgo::Camellia192, config.GetCipherAlgo());
+            }
+            else if(cipher == "camellia256")
+            {
+                ASSERT_EQ(CipherAlgo::Camellia256, config.GetCipherAlgo());
+            }
+            else if(cipher == "twofish")
+            {
+                ASSERT_EQ(CipherAlgo::Twofish, config.GetCipherAlgo());
+            }
+
+            // Hash
+            if(hash == "sha160")
+            {
+                ASSERT_EQ(HashAlgo::SHA160, config.GetHashAlgo());
+            }
+            else if(hash == "sha256")
+            {
                 ASSERT_EQ(HashAlgo::SHA256, config.GetHashAlgo());
+            }
+
+            // Armor
+            if(ext == "asc")
+            {
+                ASSERT_TRUE(config.GetArmor());
+            }
+            else if(ext == "gpg")
+            {
+                ASSERT_FALSE(config.GetArmor());
             }
 
             ASSERT_EQ(parameters_.iterations, DecodeS2KIterations(config.GetIterations()));
